@@ -43,13 +43,14 @@ input = [['R1010','D422','L354','U494','L686','U894','R212','U777','L216','U9','
 // }
 // intersections(input).sort()[0];
 
-input = [['R75','D30','R83','U83','L12','D49','R71','U7','L72'],
-['U62','R66','U55','R34','D71','R55','D58','R83']]
+// input = [['R75','D30','R83','U83','L12','D49','R71','U7','L72'],
+// ['U62','R66','U55','R34','D71','R55','D58','R83']]
 function intersections(wires) {
     ints = [];
     visited = wires.map(w => {
-        pos = [0,0];
-        steps = {};
+        let pos = [0,0];
+        let steps = {};
+        let zz = 0;
         for (let i = 0; i < w.length; i++) {
             let step = w[i];
             let vec = [0,0];
@@ -69,12 +70,13 @@ function intersections(wires) {
             }
             const num = parseInt(step.substr(1))
             for (let s = 0; s < num; s++) {
+                zz++;
                 pos[0] += vec[0]
                 pos[1] += vec[1];
                 let x = pos[0];
                 let y = pos[1];
                 const val = x*1000000 + y
-                steps[val] = [x,y]
+                steps[val] = [x,y,zz]
             }
         }
         return steps;
@@ -82,12 +84,17 @@ function intersections(wires) {
     console.log(visited);
     for (let key in visited[0]) {
         if (visited[1][key]) {
-            ints.push(visited[1][key])
+            ints.push([visited[1][key][0], visited[1][key][1], visited[0][key][2] + visited[1][key][2]]);
         }
     }
     return ints;
 }
-ints = intersections(input).map(a => [a[0],a[1],Math.abs(a[0]) + Math.abs(a[1])])
-console.log('sorting', ints)
-dist = ints.sort((a, b) => a[2] - b[2])[0];
+intzz = intersections(input).map(a => [a[0],a[1],Math.abs(a[0]) + Math.abs(a[1]), a[2]])
+console.log('sorting', intzz)
+dist = intzz.sort((a, b) => a[2] - b[2])[0];
 console.log('done', dist);
+
+// **
+console.log('steps')
+ztep = intzz.sort((a, b) => a[3] - b[3])[0];
+console.log('done', ztep);
