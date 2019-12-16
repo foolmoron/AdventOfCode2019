@@ -87,9 +87,9 @@ function run(mem, input, output, pos = 0, rel = 0) {
     });
 }
 
-map = [['.']];
+map = [[4]];
 
-visitChars = ['-','+','=','?']
+dirChars = ['#','^','v','<','>']
 function printMap(map) {
     console.log('-----');
     let minY = Object.keys(map).map(y=>parseInt(y))
@@ -105,10 +105,10 @@ function printMap(map) {
                 str += 'D';
             } else if (x == 0 && y == 0) {
                 str += '0';
-            } else if (Number.isInteger(map[y][x])) {
-                str += visitChars[map[y][x] % 4];
+            } else if (x == GOAL_POS[0] && y == GOAL_POS[1]) {
+                str += '$';
             } else {
-                str += map[y][x] || ' ';
+                str += dirChars[map[y][x]] || ' ';
             }
         }
         console.log(str);
@@ -135,12 +135,47 @@ function coverage(map) {
     }
     return uncovered > 100 ? uncovered / total : 0;
 }
+function buildPath(map, start, goal) {
+    let stack = [start];
+    let parents = {};
+    let visited = [];
+    while (stack.length) {
+        let node = stack.pop();
+        visited.push(node);
+        if (node[0] === goal[0] && node[0] === goal[1]) {
+            break;
+        }
+        for (let dir of dirNames) {
+            if (map[node[1] + dirs[dir][1]] !== undefined && !!map[node[1] + dirs[dir][1]][node[0] + dirs[dir][0]]) {
+                let newPos = [node[0] + dirs[dir][0], node[1] + dirs[dir][1]];
+                if (!visited.find(v => v[0] === newPos[0] && v[1] === newPos[1])) {
+                    stack.push(newPos);
+                    parents[newPos] = node;
+                }
+            }
+        }
+    }
+    let path = []
+    let node = goal;
+    while (parents[node]) {
+        path.unshift(node);
+        node = parents[node];
+    }
+    return path;
+}
 
+dirNames = ['N','S','W','E'];
 dirNums = {
     'N': 1,
     'S': 2,
     'W': 3,
     'E': 4,
+}
+dirOpposites = {
+    1: 'S',
+    2: 'N',
+    3: 'E',
+    4: 'W',
 }
 dirNexts = {
     'N': ['N','W','E','S'],
@@ -155,17 +190,28 @@ dirs = {
     'E': [1,0],
 }
 let robotPos = [0,0];
-let attempts = 0;
 let attemptedDir = 'E';
-let prevDir = 'E';
-let GOAL_POS = null;
+let retracing = false;
+let GOAL_POS = [];
 
 function handleInput() {
-    if (coverage(map) > 0.75) {
+    if (coverage(map) > 0.98691) {
+        printMap(map);
         return null;
     }
-    attemptedDir = dirNexts[prevDir][attempts];
-    // console.log('going:', attemptedDir, 'prev:', prevDir, 'attempts:', attempts);
+    let dirToAttempt = null;
+    retracing = true;
+    for (let dir of dirNames) {
+        if (map[robotPos[1] + dirs[dir][1]] === undefined || map[robotPos[1] + dirs[dir][1]][robotPos[0] + dirs[dir][0]] === undefined) {
+            dirToAttempt = dir;
+            retracing = false;
+            break;
+        }
+    }
+    if (retracing) {
+        dirToAttempt = dirOpposites[map[robotPos[1]][robotPos[0]]];
+    }
+    attemptedDir = dirToAttempt;
     return dirNums[attemptedDir];
 }
 let z = 0;
@@ -173,21 +219,13 @@ function handleOutput(o) {
     let newPos = [robotPos[0] + dirs[attemptedDir][0], robotPos[1] + dirs[attemptedDir][1]];
     map[newPos[1]] = map[newPos[1]] || [];
     if (o == 0) {
-        map[newPos[1]][newPos[0]] = '#';
-        attempts++;
+        map[newPos[1]][newPos[0]] = 0;
     } else {
+        if (!retracing) {
+            map[newPos[1]][newPos[0]] = dirNums[attemptedDir];
+        }
         robotPos = newPos;
-        prevDir = attemptedDir;
-        attempts = 0;
-        if (o == 1) {
-            if (map[newPos[1]][newPos[0]] === undefined) {
-                map[newPos[1]][newPos[0]] = 0;
-            } else {
-                map[newPos[1]][newPos[0]]++;
-            }
-            attempts = map[newPos[1]][newPos[0]] % 4;
-        } else {
-            map[newPos[1]][newPos[0]] = '$';
+        if (o == 2) {
             GOAL_POS = newPos;
         }
     }
@@ -196,9 +234,34 @@ function handleOutput(o) {
 run(input, handleInput, handleOutput)
     .then(state => {
         console.log('DONE');
-        console.log(map);
         printMap(map);
-        console.log('goal', GOAL_POS);
+        console.log('goal:', GOAL_POS[0], GOAL_POS[1]);
+        console.log('steps:', buildPath(map, [0,0], GOAL_POS).length);
+
+        console.log('minutes:', findDeepestPath(map, GOAL_POS));
     });
 
-// TODO: go to next uncovered spot, else go back the way you came (track where you came from on each tile)
+// **
+function findDeepestPath(map, start) {
+    let ends = [];
+    let minY = Object.keys(map).map(y=>parseInt(y))
+        .reduce((acc, y) => Math.min(acc, y), Infinity)
+        ;
+    let maxY = map.length;
+    let minX = map.map(xs => Object.keys(xs).map(x=>parseInt(x)).reduce((acc, x) => Math.min(acc, x), Infinity))
+        .reduce((acc, x) => Math.min(acc, x), Infinity)
+        ;
+    let maxX = map.map(xs => xs.length).reduce((acc, x) => Math.max(acc, x), -Infinity);
+    for (let y = minY; y < maxY; y++) {
+        for (let x = minX; x < maxX; x++) {
+            if (!!map[y][x]) {
+                ends.push([x, y]);
+            }
+        }
+    }
+
+    let longest = ends.map(e => buildPath(map, start, e))
+        .reduce((acc, x) => Math.max(acc, x.length), 0)
+        ;
+    return longest;
+}
